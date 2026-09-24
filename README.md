@@ -119,16 +119,45 @@ less. At 33⅓ the band ends around 425 Hz, below most of a singing voice, which
 people mean when they say a printed record sounds like it is playing in the next room. Print times:
 about 3 hours for a 250 mm disc at 0.4 mm, about 8 at 0.2 mm.
 
-## Quick start
+## Install
 
-Requirements: Node 22 or newer. The CLI needs `ffmpeg` on your PATH to decode audio; the browser
-decodes it itself.
+You need **Node 22 or newer**, and **ffmpeg** if you want the command line to read mp3 or mp4 (the
+browser decodes audio by itself, so the web page does not need it).
+
+```bash
+# macOS
+brew install node ffmpeg
+
+# Windows, in PowerShell
+winget install OpenJS.NodeJS.LTS Gyan.FFmpeg
+
+# Debian or Ubuntu
+sudo apt install nodejs npm ffmpeg
+```
+
+Then:
 
 ```bash
 git clone https://github.com/TanskiSzymon/vinyl-engine
 cd vinyl-engine
 npm install
+npm test            # optional, 113 tests, takes a few seconds
 ```
+
+Nothing is installed globally, nothing runs in the background, and no account is involved.
+
+### Or have an AI agent do it
+
+If you use Claude Code, Codex, Cursor or anything similar, paste this at it:
+
+> Set up https://github.com/TanskiSzymon/vinyl-engine on my machine, read its AGENTS.md, and make
+> me a printable record of The Entertainer for a Bambu P1S with a 0.4 mm nozzle.
+
+[AGENTS.md](AGENTS.md) tells the agent what it needs: the prerequisites, how to choose the speed
+and diameter, which template to use, and how to check the result before you spend three hours of
+printer time on it. Replace the tune with your own file once the first disc plays.
+
+## Quick start
 
 **The web page**, if you would rather click than type:
 
@@ -232,6 +261,7 @@ window lands in a gap. The same loop is step 05 in the web UI.
 | `app/` | the local web UI (Next.js, all computation client side, in a Web Worker) |
 | `templates/` | ready made Bambu P1S templates |
 | `docs/` | [how it works](docs/how-it-works.md) · [prior art](docs/prior-art.md) · [which music you may cut](docs/public-domain-music.md) |
+| `AGENTS.md` | setup and generation instructions for an AI agent doing this on someone's behalf |
 
 ```bash
 npm test          # 113 tests, including an end-to-end one that reads the audio back out
