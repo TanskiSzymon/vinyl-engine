@@ -1,0 +1,16 @@
+node_modules
+out/
+*.gcode
+*.gcode.3mf
+!templates/*.gcode.3mf
+*.wav
+!fixtures/**
+.next
+.vercel
+.env*
+/audio/
+.env*.local
+
+# generated
+tsconfig.tsbuildinfo
+next-env.d.ts

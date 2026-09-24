@@ -1,0 +1,46 @@
+{
+  "name": "vinyl-engine",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "cli": "tsx src/cli.ts",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "next": "^16.3.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.6"
+  },
+  "license": "MIT",
+  "description": "Turn an audio file into a playable record you can print on an FDM 3D printer.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanskiSzymon/vinyl-engine.git"
+  },
+  "author": "Szymon Tanski",
+  "bugs": {
+    "url": "https://github.com/TanskiSzymon/vinyl-engine/issues"
+  },
+  "homepage": "https://github.com/TanskiSzymon/vinyl-engine#readme",
+  "keywords": [
+    "3d-printing",
+    "vinyl",
+    "record",
+    "gcode",
+    "bambulab"
+  ]
+}
