@@ -102,19 +102,21 @@ function report(label: string, gcode: string, timeSec: number, extra: string): v
  */
 async function buildModel(): Promise<void> {
   const p = params();
+  // The nozzle profile is the baseline; every explicit flag overrides it, and MESH_DEFAULTS are
+  // what is left for a 0.4 mm nozzle.
+  const base = { ...MESH_DEFAULTS, ...(typeof values.nozzle === "string" ? meshNozzleProfile(Number(values.nozzle)) : {}) };
   const mp: MeshParams = {
-    ...MESH_DEFAULTS,
-    ...(typeof values.nozzle === "string" ? meshNozzleProfile(Number(values.nozzle)) : {}),
+    ...base,
     sampleRate: p.sampleRate,
     diameterMm: p.diameterMm, holeMm: p.holeMm, rpm: p.rpm,
     outerGrooveR: p.outerGrooveR, innerGrooveR: p.innerGrooveR,
-    amplitudeMm: typeof values.amp === "string" ? Number(values.amp) : MESH_DEFAULTS.amplitudeMm,
-    thicknessMm: typeof values.thickness === "string" ? Number(values.thickness) : MESH_DEFAULTS.thicknessMm,
-    stepsPerTurn: typeof values.steps === "string" ? Number(values.steps) : MESH_DEFAULTS.stepsPerTurn,
-    grooveTopMm: typeof values["groove-top"] === "string" ? Number(values["groove-top"]) : MESH_DEFAULTS.grooveTopMm,
-    grooveFloorMm: typeof values["groove-floor"] === "string" ? Number(values["groove-floor"]) : MESH_DEFAULTS.grooveFloorMm,
-    grooveDepthMm: typeof values["groove-depth"] === "string" ? Number(values["groove-depth"]) : MESH_DEFAULTS.grooveDepthMm,
-    landMm: typeof values.land === "string" ? Number(values.land) : MESH_DEFAULTS.landMm,
+    amplitudeMm: typeof values.amp === "string" ? Number(values.amp) : base.amplitudeMm,
+    thicknessMm: typeof values.thickness === "string" ? Number(values.thickness) : base.thicknessMm,
+    stepsPerTurn: typeof values.steps === "string" ? Number(values.steps) : base.stepsPerTurn,
+    grooveTopMm: typeof values["groove-top"] === "string" ? Number(values["groove-top"]) : base.grooveTopMm,
+    grooveFloorMm: typeof values["groove-floor"] === "string" ? Number(values["groove-floor"]) : base.grooveFloorMm,
+    grooveDepthMm: typeof values["groove-depth"] === "string" ? Number(values["groove-depth"]) : base.grooveDepthMm,
+    landMm: typeof values.land === "string" ? Number(values.land) : base.landMm,
     centerX: 0, centerY: 0,   // the model is centred on the origin; the slicer places it on the bed
   };
   const budget = meshMaxDurationSec(mp);
@@ -143,7 +145,8 @@ async function buildModel(): Promise<void> {
   console.log(`model: ${values.out}`);
   console.log(`  music ${musicSec.toFixed(1)} s / max ${budget.toFixed(1)} s, ${turns} turns, pitch ${meshPitchMm(mp).toFixed(2)} mm`);
   console.log(`  ${mesh.vertexCount.toLocaleString("en")} vertices, ${mesh.triangleCount.toLocaleString("en")} triangles, ${(bytes.length / 1e6).toFixed(1)} MB`);
-  console.log("  slice it with: 0.4 mm nozzle, 0.2 mm layers, PLA, 100% infill in the top layers");
+  const nz = typeof values.nozzle === "string" ? Number(values.nozzle) : 0.4;
+  console.log(`  slice it with: ${nz} mm nozzle, ${(nz / 2).toFixed(2)} mm layers, PLA, 100% infill in the top layers`);
 }
 
 async function main() {
