@@ -79,7 +79,7 @@ npm run cli -- generate "<their file>" --template <template> \
   --out out/record.gcode.3mf --rpm 78 --diameter 250 --start 43
 
 # a 3MF solid instead, if they would rather slice it themselves
-npm run cli -- model "<their file>" --out out/disc.3mf --rpm 45
+npm run cli -- model "<their file>" --out out/disc.3mf --rpm 45 [--nozzle 0.2]
 ```
 
 Useful extras, all optional: `--text "LINE ONE|LINE TWO"` engraves a label, `--decor rings`

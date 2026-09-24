@@ -9,7 +9,7 @@ import { readWav16, writeWav16 } from "./audio/wav";
 import { normalizePeak } from "./audio/dsp";
 import { DECOR_STYLES } from "./gcode/decor";
 import { TUNES, tuneById } from "./audio/melody";
-import { buildRecordMesh, MESH_DEFAULTS, meshMaxDurationSec, meshPitchMm, type MeshParams } from "./mesh/record-mesh";
+import { buildRecordMesh, MESH_DEFAULTS, meshMaxDurationSec, meshNozzleProfile, meshPitchMm, type MeshParams } from "./mesh/record-mesh";
 import { write3mf } from "./mesh/write3mf";
 import { packGcode3mf, readTemplate } from "./gcode/template-node";
 import { disableSpaghettiDetector, patchLayerCount, patchLevelingArea, patchNozzle, splitGcode, type PrintMeta, type Template } from "./gcode/template";
@@ -104,6 +104,7 @@ async function buildModel(): Promise<void> {
   const p = params();
   const mp: MeshParams = {
     ...MESH_DEFAULTS,
+    ...(typeof values.nozzle === "string" ? meshNozzleProfile(Number(values.nozzle)) : {}),
     sampleRate: p.sampleRate,
     diameterMm: p.diameterMm, holeMm: p.holeMm, rpm: p.rpm,
     outerGrooveR: p.outerGrooveR, innerGrooveR: p.innerGrooveR,

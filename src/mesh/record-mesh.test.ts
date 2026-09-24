@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { tone } from "../audio/synth";
-import { buildRecordMesh, MESH_DEFAULTS, meshMaxDurationSec, meshPitchMm, type MeshParams } from "./record-mesh";
+import { buildRecordMesh, MESH_DEFAULTS, meshMaxDurationSec, meshNozzleProfile, meshPitchMm, type MeshParams } from "./record-mesh";
 
 const p: MeshParams = { ...MESH_DEFAULTS, sampleRate: 8000, stepsPerTurn: 240, diameterMm: 180, outerGrooveR: 87, innerGrooveR: 58 };
 
@@ -76,5 +76,22 @@ describe("record mesh", () => {
       if (area < 1e-9) degenerate += 1;
     }
     expect(degenerate).toBeLessThanOrEqual(4);
+  });
+
+  it("a finer nozzle tightens the pitch, keeps the land printable and stays watertight", () => {
+    const fine: MeshParams = { ...p, ...meshNozzleProfile(0.2), stepsPerTurn: 240 };
+    expect(meshPitchMm(fine)).toBeLessThan(meshPitchMm(p) * 0.7);
+    // the land has to hold at least two extrusion paths, or a slicer drops the ridge entirely
+    expect(fine.landMm).toBeGreaterThanOrEqual(2 * 0.22);
+    expect(fine.grooveFloorMm).toBeGreaterThanOrEqual(0.22);
+    expect(fine.grooveDepthMm).toBeGreaterThan(fine.grooveFloorMm);
+    expect(fine.thicknessMm).toBeGreaterThan(fine.grooveDepthMm + 0.6);
+    const built = buildRecordMesh(fine, tone(300, 3, fine.sampleRate, 1));
+    expect(built.mesh.checkManifold()).toEqual([]);
+    expect(meshMaxDurationSec(fine)).toBeGreaterThan(meshMaxDurationSec(p) * 1.4);
+  });
+
+  it("leaves a 0.4 mm nozzle on the measured defaults", () => {
+    expect(meshNozzleProfile(0.4)).toEqual({});
   });
 });

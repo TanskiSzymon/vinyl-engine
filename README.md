@@ -288,7 +288,8 @@ Built, used, and then stopped: the author no longer owns a turntable and has no 
 further. It is published as is, in the hope that somebody does. Obvious next steps if you are
 looking for one:
 
-- the 3MF mesh path ignores `nozzleProfile` and is still hard coded for 0.4 mm
+- the 0.2 mm mesh profile is scaled from extrusion width, not printed and measured like the
+  G-code path
 - nothing but the Bambu P1S has been tested end to end, though the engine only emits ordinary moves
   and extrusions, so other printers should work
 - `minCurvature` for a 0.2 mm nozzle is scaled from the 0.4 mm measurement, not measured

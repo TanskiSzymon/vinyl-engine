@@ -48,6 +48,31 @@ export const MESH_DEFAULTS: Omit<MeshParams, "sampleRate"> = {
   centerX: 128, centerY: 128,
 };
 
+/**
+ * Mesh dimensions for a given nozzle. The defaults above are sized for 0.4 mm: the land has to
+ * hold at least two extrusion paths and the groove walls need room for a perimeter each, or the
+ * slicer will drop them. With a finer nozzle all of that shrinks, and the disc holds proportionally
+ * more music, so the profile scales with extrusion width rather than being fixed.
+ *
+ * These are geometric consequences of the extrusion width, not measurements: unlike the G-code
+ * path, nobody has printed a sliced 0.2 mm mesh end to end yet.
+ */
+export function meshNozzleProfile(nozzleMm: number): Partial<MeshParams> {
+  if (nozzleMm >= 0.35) return {};
+  const bead = nozzleMm * 1.1;
+  const r = bead / 0.44;                       // scale relative to the 0.4 mm bead
+  const round = (v: number) => Number(v.toFixed(2));
+  return {
+    grooveTopMm: round(Math.max(4 * bead, 1.6 * r)),
+    grooveFloorMm: round(Math.max(1.2 * bead, 0.5 * r)),
+    grooveDepthMm: round(Math.max(2.5 * bead, 0.7 * r)),
+    landMm: round(Math.max(2.2 * bead, 0.9 * r)),   // at least two extrusion paths wide
+    amplitudeMm: round(0.18 * r),
+    thicknessMm: round(Math.max(1.4, 0.7 + 2.5 * bead)),
+    stepsPerTurn: 3600,
+  };
+}
+
 export function meshPitchMm(p: MeshParams): number {
   return p.grooveTopMm + 2 * p.amplitudeMm + p.landMm;
 }
