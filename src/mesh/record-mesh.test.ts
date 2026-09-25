@@ -109,6 +109,11 @@ describe("record mesh", () => {
       expect(v[i + 2]).toBeGreaterThanOrEqual(zFloor - 1e-9);
     }
     expect(maxTextR).toBeLessThan(p.innerGrooveR);
+    let minTextR = Infinity;
+    for (let i = plain.mesh.vertexCount * 3; i < v.length; i += 3) {
+      minTextR = Math.min(minTextR, Math.hypot(v[i] - p.centerX, v[i + 1] - p.centerY));
+    }
+    expect(minTextR).toBeGreaterThan(p.holeMm / 2);   // never bridges the spindle hole
     expect(maxZ).toBeCloseTo(zFloor + p.labelReliefMm, 6);
   });
 

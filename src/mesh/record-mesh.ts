@@ -229,18 +229,23 @@ export function buildRecordMesh(p: MeshParams, signal: Float32Array): RecordMesh
 function emitLabelText(m: Mesh, p: MeshParams, zFloor: number): void {
   const lines = p.labelText.map((l) => l.trim()).filter(Boolean).slice(0, 2);
   if (lines.length === 0) return;
-  const cap = p.labelCapMm, gap = cap * 0.55;
-  const blockH = lines.length * cap + (lines.length - 1) * gap;
-  const topBaseline = p.centerY + blockH / 2 - cap;
+  // The spindle hole sits in the middle of the label, so the lines are laid out around it rather
+  // than centred on it: text bridging the hole would print as plastic across the spindle.
+  const cap = p.labelCapMm;
+  const clear = p.holeMm / 2 + 0.8;
+  const baselines = lines.length === 2 ? [clear, -(clear + cap)] : [clear];
   const hw = p.labelStrokeMm / 2, zTop = zFloor + p.labelReliefMm;
+  const rHoleClear = p.holeMm / 2 + 0.4;
   for (let li = 0; li < lines.length; li += 1) {
-    const polys = textPolys(lines[li], { capHeightMm: cap, centerX: p.centerX, baselineY: topBaseline - li * (cap + gap) });
+    const polys = textPolys(lines[li], { capHeightMm: cap, centerX: p.centerX, baselineY: p.centerY + baselines[li] });
     for (const poly of polys) {
       for (let i = 0; i + 1 < poly.length; i += 1) {
         const a = poly[i], b = poly[i + 1];
         const dx = b.x - a.x, dy = b.y - a.y;
         const len = Math.hypot(dx, dy);
         if (len < 1e-6) continue;
+        const mx = (a.x + b.x) / 2 - p.centerX, my = (a.y + b.y) / 2 - p.centerY;
+        if (Math.hypot(mx, my) < rHoleClear) continue;      // never build over the spindle hole
         // A box around the segment, extended by half a stroke at each end so joints close up.
         const ux = dx / len, uy = dy / len, nx = -uy * hw, ny = ux * hw;
         const ax = a.x - ux * hw, ay = a.y - uy * hw, bx = b.x + ux * hw, by = b.y + uy * hw;
