@@ -14,3 +14,7 @@ out/
 # generated
 tsconfig.tsbuildinfo
 next-env.d.ts
+
+# local media, never in the repository
+*.mp4
+*.mov
