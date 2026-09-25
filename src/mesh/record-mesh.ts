@@ -43,6 +43,9 @@ export type MeshParams = {
   labelReliefMm: number;
   /** A raised pattern in the middle: the same patterns the G-code path draws. */
   decorStyle: DecorStyle;
+  /** Spacing the pattern is resampled to. The G-code draws it at 0.5 mm, which is far finer than
+   *  a relief needs and costs triangles a slicer then has to chew through. */
+  decorStepMm: number;
   sampleRate: number;
   centerX: number;
   centerY: number;
@@ -55,7 +58,7 @@ export const MESH_DEFAULTS: Omit<MeshParams, "sampleRate"> = {
   landMm: 0.9, amplitudeMm: 0.18,
   leadInTurns: 1, leadInPitchMm: 3,
   stepsPerTurn: 2400,
-  labelText: [], labelCapMm: 7, labelStrokeMm: 1.0, labelReliefMm: 0.5, decorStyle: "none",
+  labelText: [], labelCapMm: 7, labelStrokeMm: 1.0, labelReliefMm: 0.5, decorStyle: "none", decorStepMm: 1.2,
   centerX: 128, centerY: 128,
 };
 
@@ -225,6 +228,18 @@ export function buildRecordMesh(p: MeshParams, signal: Float32Array): RecordMesh
   return { mesh: m, turns, musicSec, stepsPerTurn: N };
 }
 
+/** Drops points from a path until they are at least `stepMm` apart; the ends are always kept. */
+function resample<T extends { x: number; y: number }>(path: T[], stepMm: number): T[] {
+  if (path.length < 3) return path;
+  const out: T[] = [path[0]];
+  let acc = 0;
+  for (let i = 1; i < path.length; i += 1) {
+    acc += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
+    if (acc >= stepMm || i === path.length - 1) { out.push(path[i]); acc = 0; }
+  }
+  return out;
+}
+
 /** One stroke, of the font or of a pattern, as a closed box standing on the plateau. */
 function emitStroke(m: Mesh, a: { x: number; y: number }, b: { x: number; y: number }, hw: number, z0: number, z1: number): void {
   const dx = b.x - a.x, dy = b.y - a.y;
@@ -257,8 +272,9 @@ function emitDecorRelief(m: Mesh, p: MeshParams, zFloor: number): void {
   const hw = p.labelStrokeMm / 2, zTop = zFloor + p.labelReliefMm;
   const rHoleClear = p.holeMm / 2 + 0.4;
   for (const path of [...center, ...rim]) {
-    for (let i = 0; i + 1 < path.length; i += 1) {
-      const a = path[i], b = path[i + 1];
+    const coarse = resample(path, p.decorStepMm);
+    for (let i = 0; i + 1 < coarse.length; i += 1) {
+      const a = coarse[i], b = coarse[i + 1];
       const r = Math.hypot((a.x + b.x) / 2 - p.centerX, (a.y + b.y) / 2 - p.centerY);
       if (r < rHoleClear) continue;                                      // never over the spindle hole
       if (r > p.innerGrooveR - 0.6 && r < p.outerGrooveR + 1.5) continue; // never inside the groove band
