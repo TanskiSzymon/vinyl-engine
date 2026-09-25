@@ -129,4 +129,19 @@ describe("record mesh", () => {
     expect(rimZ).toBeCloseTo(zFloor, 6);
     expect(labelZ).toBeCloseTo(zFloor, 6);   // the label plateau is the top of the hole ring
   });
+
+  it("a raised pattern stays out of the groove band and off the spindle hole", () => {
+    const plain = buildRecordMesh(p, tone(300, 3, p.sampleRate, 1));
+    const fancy = buildRecordMesh({ ...p, decorStyle: "guilloche" }, tone(300, 3, p.sampleRate, 1));
+    expect(fancy.mesh.triangleCount).toBeGreaterThan(plain.mesh.triangleCount);
+    expect(fancy.mesh.checkManifold()).toEqual([]);
+    const zFloor = p.thicknessMm - p.grooveDepthMm;
+    const v = fancy.mesh.vertices;
+    for (let i = plain.mesh.vertexCount * 3; i < v.length; i += 3) {
+      const r = Math.hypot(v[i] - p.centerX, v[i + 1] - p.centerY);
+      expect(r).toBeGreaterThan(p.holeMm / 2);
+      expect(r < p.innerGrooveR || r > p.outerGrooveR).toBe(true);
+      expect(v[i + 2]).toBeGreaterThanOrEqual(zFloor - 1e-9);
+    }
+  });
 });

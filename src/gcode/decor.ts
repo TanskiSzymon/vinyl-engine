@@ -177,7 +177,11 @@ export function labelTextPaths(p: RecordParams, lines: string[], capHeightMm: nu
       .map((poly) => poly.map((pt) => ({ x: pt.x, y: pt.y, w }))));
 }
 
-export function decorPaths(p: RecordParams, style: DecorStyle, textLines: string[] = [], capHeightMm = 6, watermark = ""): PathPoint[][] {
+/**
+ * The decoration in its separate pieces, because the mesh path wants the patterns without the
+ * label text: it lays the text out itself, around the spindle hole.
+ */
+export function decorParts(p: RecordParams, style: DecorStyle, textLines: string[] = [], capHeightMm = 6, watermark = ""): { center: PathPoint[][]; rim: PathPoint[][]; text: PathPoint[][]; mark: PathPoint[][] } {
   const z = decorZone(p);
   const text = labelTextPaths(p, textLines, capHeightMm, p.beadWidthMm);
   // Watermark: small text just above the hole. It does not touch the grooves and takes no room
@@ -188,8 +192,7 @@ export function decorPaths(p: RecordParams, style: DecorStyle, textLines: string
     : [];
   // The decoration gives the text room: the radius the text needs pushes the pattern outward.
   if (text.length > 0) z.rMin = Math.max(z.rMin, textRadiusMm(textLines.filter(Boolean), capHeightMm, capHeightMm * 0.55));
-  if (style === "none") return [...text, ...mark];
-  if (z.rMax - z.rMin < 6) return [...text, ...mark];
+  if (style === "none" || z.rMax - z.rMin < 6) return { center: [], rim: [], text, mark };
   const w = p.beadWidthMm;
   const center =
     style === "sunburst" ? sunburst(p, z, w)
@@ -203,6 +206,11 @@ export function decorPaths(p: RecordParams, style: DecorStyle, textLines: string
   const rim: PathPoint[][] = [];
   const rimFree = p.outerGrooveR + p.beadWidthMm + 2 * p.amplitudeMm + 0.4; // how far the groove reaches
   for (let i = 0, r = p.diameterMm / 2 - w / 2 - 0.5; r > rimFree && i < 2; i += 1, r -= 1.2) rim.push(circle(p, r, w, 5 + i));
+  return { center, rim, text, mark };
+}
+
+export function decorPaths(p: RecordParams, style: DecorStyle, textLines: string[] = [], capHeightMm = 6, watermark = ""): PathPoint[][] {
+  const { center, rim, text, mark } = decorParts(p, style, textLines, capHeightMm, watermark);
   return [...center, ...rim, ...text, ...mark];
 }
 

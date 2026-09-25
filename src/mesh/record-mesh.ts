@@ -12,6 +12,8 @@
 // revolution has to be constant.
 import { sampleAt } from "../record/groove";
 import { textPolys } from "../gcode/font";
+import { decorParts, type DecorStyle } from "../gcode/decor";
+import { DEFAULT_PARAMS, withOverrides } from "../record/layout";
 import { Mesh } from "./mesh";
 
 const TWO_PI = 2 * Math.PI;
@@ -39,6 +41,8 @@ export type MeshParams = {
   labelCapMm: number;
   labelStrokeMm: number;
   labelReliefMm: number;
+  /** A raised pattern in the middle: the same patterns the G-code path draws. */
+  decorStyle: DecorStyle;
   sampleRate: number;
   centerX: number;
   centerY: number;
@@ -51,7 +55,7 @@ export const MESH_DEFAULTS: Omit<MeshParams, "sampleRate"> = {
   landMm: 0.9, amplitudeMm: 0.18,
   leadInTurns: 1, leadInPitchMm: 3,
   stepsPerTurn: 2400,
-  labelText: [], labelCapMm: 7, labelStrokeMm: 1.0, labelReliefMm: 0.5,
+  labelText: [], labelCapMm: 7, labelStrokeMm: 1.0, labelReliefMm: 0.5, decorStyle: "none",
   centerX: 128, centerY: 128,
 };
 
@@ -216,8 +220,51 @@ export function buildRecordMesh(p: MeshParams, signal: Float32Array): RecordMesh
   }
 
   emitLabelText(m, p, zFloor);
+  emitDecorRelief(m, p, zFloor);
 
   return { mesh: m, turns, musicSec, stepsPerTurn: N };
+}
+
+/** One stroke, of the font or of a pattern, as a closed box standing on the plateau. */
+function emitStroke(m: Mesh, a: { x: number; y: number }, b: { x: number; y: number }, hw: number, z0: number, z1: number): void {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) return;
+  // The box runs half a stroke past each end, so consecutive segments close up at the joints.
+  const ux = dx / len, uy = dy / len, nx = -uy * hw, ny = ux * hw;
+  const ax = a.x - ux * hw, ay = a.y - uy * hw, bx = b.x + ux * hw, by = b.y + uy * hw;
+  const c: [number, number][] = [[ax + nx, ay + ny], [bx + nx, by + ny], [bx - nx, by - ny], [ax - nx, ay - ny]];
+  const lo = c.map(([x, y]) => m.v(x, y, z0));
+  const hi = c.map(([x, y]) => m.v(x, y, z1));
+  m.quad(lo[3], lo[2], lo[1], lo[0]);                  // bottom, facing down
+  m.quad(hi[0], hi[1], hi[2], hi[3]);                  // top
+  for (let k = 0; k < 4; k += 1) m.quad(lo[k], lo[(k + 1) % 4], hi[(k + 1) % 4], hi[k]);
+}
+
+/**
+ * The centre pattern and the rim border, raised on the plateau exactly as the text is. The paths
+ * come from the G-code decoration module, so a disc sliced from this mesh carries the same pattern
+ * as one printed straight from G-code.
+ */
+function emitDecorRelief(m: Mesh, p: MeshParams, zFloor: number): void {
+  if (p.decorStyle === "none") return;
+  const rp = withOverrides(DEFAULT_PARAMS, {
+    centerX: p.centerX, centerY: p.centerY, holeMm: p.holeMm, diameterMm: p.diameterMm,
+    innerGrooveR: p.innerGrooveR, outerGrooveR: p.outerGrooveR,
+    beadWidthMm: p.labelStrokeMm, amplitudeMm: p.amplitudeMm,
+  });
+  const { center, rim } = decorParts(rp, p.decorStyle, p.labelText, p.labelCapMm);
+  const hw = p.labelStrokeMm / 2, zTop = zFloor + p.labelReliefMm;
+  const rHoleClear = p.holeMm / 2 + 0.4;
+  for (const path of [...center, ...rim]) {
+    for (let i = 0; i + 1 < path.length; i += 1) {
+      const a = path[i], b = path[i + 1];
+      const r = Math.hypot((a.x + b.x) / 2 - p.centerX, (a.y + b.y) / 2 - p.centerY);
+      if (r < rHoleClear) continue;                                      // never over the spindle hole
+      if (r > p.innerGrooveR - 0.6 && r < p.outerGrooveR + 1.5) continue; // never inside the groove band
+      emitStroke(m, a, b, hw, zFloor, zTop);
+    }
+  }
 }
 
 /**
@@ -241,25 +288,9 @@ function emitLabelText(m: Mesh, p: MeshParams, zFloor: number): void {
     for (const poly of polys) {
       for (let i = 0; i + 1 < poly.length; i += 1) {
         const a = poly[i], b = poly[i + 1];
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const len = Math.hypot(dx, dy);
-        if (len < 1e-6) continue;
         const mx = (a.x + b.x) / 2 - p.centerX, my = (a.y + b.y) / 2 - p.centerY;
         if (Math.hypot(mx, my) < rHoleClear) continue;      // never build over the spindle hole
-        // A box around the segment, extended by half a stroke at each end so joints close up.
-        const ux = dx / len, uy = dy / len, nx = -uy * hw, ny = ux * hw;
-        const ax = a.x - ux * hw, ay = a.y - uy * hw, bx = b.x + ux * hw, by = b.y + uy * hw;
-        const c = [
-          [ax + nx, ay + ny], [bx + nx, by + ny], [bx - nx, by - ny], [ax - nx, ay - ny],
-        ];
-        const lo = c.map(([x, y]) => m.v(x, y, zFloor));
-        const hi = c.map(([x, y]) => m.v(x, y, zTop));
-        m.quad(lo[3], lo[2], lo[1], lo[0]);            // bottom, facing down
-        m.quad(hi[0], hi[1], hi[2], hi[3]);            // top
-        for (let k = 0; k < 4; k += 1) {
-          const n = (k + 1) % 4;
-          m.quad(lo[k], lo[n], hi[n], hi[k]);
-        }
+        emitStroke(m, a, b, hw, zFloor, zTop);
       }
     }
   }

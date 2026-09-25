@@ -119,6 +119,7 @@ async function buildModel(): Promise<void> {
     landMm: typeof values.land === "string" ? Number(values.land) : base.landMm,
     labelText: typeof values.text === "string" ? values.text.split("|").slice(0, 2) : base.labelText,
     labelCapMm: typeof values["text-size"] === "string" ? Number(values["text-size"]) : base.labelCapMm,
+    decorStyle: typeof values.decor === "string" ? (values.decor as MeshParams["decorStyle"]) : base.decorStyle,
     centerX: 0, centerY: 0,   // the model is centred on the origin; the slicer places it on the bed
   };
   const budget = meshMaxDurationSec(mp);
