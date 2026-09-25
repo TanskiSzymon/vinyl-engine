@@ -117,6 +117,8 @@ async function buildModel(): Promise<void> {
     grooveFloorMm: typeof values["groove-floor"] === "string" ? Number(values["groove-floor"]) : base.grooveFloorMm,
     grooveDepthMm: typeof values["groove-depth"] === "string" ? Number(values["groove-depth"]) : base.grooveDepthMm,
     landMm: typeof values.land === "string" ? Number(values.land) : base.landMm,
+    labelText: typeof values.text === "string" ? values.text.split("|").slice(0, 2) : base.labelText,
+    labelCapMm: typeof values["text-size"] === "string" ? Number(values["text-size"]) : base.labelCapMm,
     centerX: 0, centerY: 0,   // the model is centred on the origin; the slicer places it on the bed
   };
   const budget = meshMaxDurationSec(mp);
@@ -146,6 +148,7 @@ async function buildModel(): Promise<void> {
   console.log(`  music ${musicSec.toFixed(1)} s / max ${budget.toFixed(1)} s, ${turns} turns, pitch ${meshPitchMm(mp).toFixed(2)} mm`);
   console.log(`  ${mesh.vertexCount.toLocaleString("en")} vertices, ${mesh.triangleCount.toLocaleString("en")} triangles, ${(bytes.length / 1e6).toFixed(1)} MB`);
   const nz = typeof values.nozzle === "string" ? Number(values.nozzle) : 0.4;
+  console.log(`  colour change at ${(mp.thicknessMm - mp.grooveDepthMm).toFixed(2)} mm gives a base in one colour and grooves plus label in the other`);
   console.log(`  slice it with: ${nz} mm nozzle, ${(nz / 2).toFixed(2)} mm layers, PLA, 100% infill in the top layers`);
 }
 

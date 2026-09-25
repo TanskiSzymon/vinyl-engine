@@ -1,5 +1,5 @@
 // A minimal mesh buffer: vertices and triangles in typed arrays, because a disc has
-// setki tysiecy i tablice obiektow zjadlyby pamiec przegladarki.
+// hundreds of thousands of them and arrays of objects would eat the browser's memory.
 
 export class Mesh {
   private vx: number[] = [];
@@ -11,12 +11,12 @@ export class Mesh {
     return this.vx.length / 3 - 1;
   }
 
-  /** Trojkat o zadanej kolejnosci wierzcholkow (normalna wg reguly prawej dloni). */
+  /** A triangle in the given vertex order; the normal follows the right hand rule. */
   t(a: number, b: number, c: number): void {
     this.tri.push(a, b, c);
   }
 
-  /** Czworokat a-b-c-d dzielony na dwa trojkaty. */
+  /** A quad a-b-c-d, split into two triangles. */
   quad(a: number, b: number, c: number, d: number): void {
     this.t(a, b, c);
     this.t(a, c, d);
@@ -44,7 +44,7 @@ export class Mesh {
     const bad: string[] = [];
     for (const [key, sum] of seen) {
       if (sum !== 0) {
-        bad.push(`krawedz ${key}: bilans ${sum}`);
+        bad.push(`edge ${key}: balance ${sum}`);
         if (bad.length >= limit) break;
       }
     }

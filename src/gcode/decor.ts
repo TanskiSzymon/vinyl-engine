@@ -100,7 +100,7 @@ function spiral(p: RecordParams, z: { rMin: number; rMax: number }, w: number): 
 
 /**
  * A star polygon {n/k}: join every kth of n vertices until the path returns to its start.
- * Dwie zagniezdzone gwiazdy + okrag opisany.
+ * Two nested stars plus the circle that encloses them.
  */
 function star(p: RecordParams, z: { rMin: number; rMax: number }, w: number): PathPoint[][] {
   const out: PathPoint[][] = [];

@@ -11,6 +11,7 @@
 // n+1, that is points exactly one revolution apart, which is why the number of angular steps per
 // revolution has to be constant.
 import { sampleAt } from "../record/groove";
+import { textPolys } from "../gcode/font";
 import { Mesh } from "./mesh";
 
 const TWO_PI = 2 * Math.PI;
@@ -33,6 +34,11 @@ export type MeshParams = {
   leadInPitchMm: number;
   /** Angular steps per revolution: this sets both waveform fidelity and file size. */
   stepsPerTurn: number;
+  /** Up to two lines raised on the label, drawn with the same single stroke font as the G-code. */
+  labelText: string[];
+  labelCapMm: number;
+  labelStrokeMm: number;
+  labelReliefMm: number;
   sampleRate: number;
   centerX: number;
   centerY: number;
@@ -45,6 +51,7 @@ export const MESH_DEFAULTS: Omit<MeshParams, "sampleRate"> = {
   landMm: 0.9, amplitudeMm: 0.18,
   leadInTurns: 1, leadInPitchMm: 3,
   stepsPerTurn: 2400,
+  labelText: [], labelCapMm: 7, labelStrokeMm: 1.0, labelReliefMm: 0.5,
   centerX: 128, centerY: 128,
 };
 
@@ -145,20 +152,40 @@ export function buildRecordMesh(p: MeshParams, signal: Float32Array): RecordMesh
   const rimTop: number[] = [], rimBot: number[] = [], holeTop: number[] = [], holeBot: number[] = [];
   for (let i = 0; i < N; i += 1) {
     const th = (TWO_PI * i) / N, cos = Math.cos(th), sin = Math.sin(th);
-    rimTop.push(m.v(p.centerX + rRim * cos, p.centerY + rRim * sin, zTop));
+    rimTop.push(m.v(p.centerX + rRim * cos, p.centerY + rRim * sin, zFloor));
     rimBot.push(m.v(p.centerX + rRim * cos, p.centerY + rRim * sin, zBot));
-    holeTop.push(m.v(p.centerX + rHole * cos, p.centerY + rHole * sin, zTop));
+    holeTop.push(m.v(p.centerX + rHole * cos, p.centerY + rHole * sin, zFloor));
     holeBot.push(m.v(p.centerX + rHole * cos, p.centerY + rHole * sin, zBot));
   }
   const w = (i: number) => i % N;
 
-  // Top face: the band from the edge of the disc to the outer edge of the first turn.
-  for (let i = 0; i < N; i += 1) m.quad(rimTop[i], rimTop[w(i + 1)], A[i + 1], A[i]);
+  // The flat rim band and the label plateau sit at FLOOR level, not at the top of the grooves, so
+  // the grooved ring stands proud of the disc exactly as it does in the G-code path. That is what
+  // makes a filament change at the floor height come out like the printed discs: base in one
+  // colour, grooves and label text in the other.
+  const vx = m.vertices;                  // snapshot: the rings below copy XY from the spiral
+  const lowRing = (ids: number[], from: number, count: number) => {
+    const out: number[] = [];
+    for (let i = 0; i <= count; i += 1) {
+      const idx = ids[from + i] * 3;
+      out.push(m.v(vx[idx], vx[idx + 1], zFloor));
+    }
+    return out;
+  };
+  const aLow = lowRing(A, 0, N);          // under the first turn's outer edge
+  const dLow = lowRing(D, M - N, N);      // under the last turn's inner edge
 
-  // Top face: the band from the inner edge of the last turn to the hole.
+  // Outer: flat band from the rim to the first turn, then a wall up to the land.
+  for (let i = 0; i < N; i += 1) {
+    m.quad(rimTop[i], rimTop[w(i + 1)], aLow[i + 1], aLow[i]);
+    m.quad(aLow[i], aLow[i + 1], A[i + 1], A[i]);
+  }
+
+  // Inner: a wall down from the last turn, then the flat label plateau to the hole.
   for (let i = 0; i < N; i += 1) {
     const j = M - N + i;
-    m.quad(D[j], D[j + 1], holeTop[w(i + 1)], holeTop[i]);
+    m.quad(D[j], D[j + 1], dLow[i + 1], dLow[i]);
+    m.quad(dLow[i], dLow[i + 1], holeTop[w(i + 1)], holeTop[i]);
   }
 
   // The underside, the outer wall and the wall of the hole.
@@ -173,13 +200,62 @@ export function buildRecordMesh(p: MeshParams, signal: Float32Array): RecordMesh
   m.quad(A[0], B[0], C[0], D[0]);
   m.quad(D[M], C[M], B[M], A[M]);
 
-  // The step of the spiral. The start of the groove leaves a closed loop
-  // rimTop[0]-A[0]-D[0]-A[N] in the plane of the top face, and the end leaves its mirror. The
-  // points lie on one radius, so these faces have zero area, but without them the solid would not
-  // be closed: that is an unavoidable feature of a spiral on a disc. A slicer sees them as
-  // degenerate and ignores them.
-  m.quad(rimTop[0], A[0], D[0], A[N]);
-  m.quad(D[M], A[M], D[M - N], holeTop[0]);
+  // The step of the spiral, now six sided because the band either side of the groove dropped to
+  // floor level. The points lie on one radius, so these faces have zero area, but without them the
+  // solid would not be closed: that is an unavoidable feature of a spiral on a disc, and a slicer
+  // treats them as degenerate and ignores them.
+  // The step of the spiral. Where the groove starts and ends, the band beside it drops to floor
+  // level, so each seam is a six sided hole in one radial plane. Two fans close them. The faces
+  // have zero area, but without them the solid is not closed: that is what a spiral on a disc
+  // costs, and a slicer treats them as degenerate and ignores them.
+  for (const [a, b, c, d, e, f] of [
+    [rimTop[0], aLow[0], A[0], D[0], A[N], aLow[N]],
+    [A[M], D[M - N], dLow[0], holeTop[0], dLow[N], D[M]],
+  ]) {
+    m.t(a, b, c); m.t(a, c, d); m.t(a, d, e); m.t(a, e, f);
+  }
+
+  emitLabelText(m, p, zFloor);
 
   return { mesh: m, turns, musicSec, stepsPerTurn: N };
+}
+
+/**
+ * Raised label text on the plateau, drawn with the same single stroke font the G-code uses. Each
+ * stroke segment becomes a closed box, so the strokes overlap at the joints; that is intentional
+ * and a slicer unions them. Overlapping closed solids still leave every edge used exactly twice,
+ * so the mesh stays watertight by the edge parity test.
+ */
+function emitLabelText(m: Mesh, p: MeshParams, zFloor: number): void {
+  const lines = p.labelText.map((l) => l.trim()).filter(Boolean).slice(0, 2);
+  if (lines.length === 0) return;
+  const cap = p.labelCapMm, gap = cap * 0.55;
+  const blockH = lines.length * cap + (lines.length - 1) * gap;
+  const topBaseline = p.centerY + blockH / 2 - cap;
+  const hw = p.labelStrokeMm / 2, zTop = zFloor + p.labelReliefMm;
+  for (let li = 0; li < lines.length; li += 1) {
+    const polys = textPolys(lines[li], { capHeightMm: cap, centerX: p.centerX, baselineY: topBaseline - li * (cap + gap) });
+    for (const poly of polys) {
+      for (let i = 0; i + 1 < poly.length; i += 1) {
+        const a = poly[i], b = poly[i + 1];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const len = Math.hypot(dx, dy);
+        if (len < 1e-6) continue;
+        // A box around the segment, extended by half a stroke at each end so joints close up.
+        const ux = dx / len, uy = dy / len, nx = -uy * hw, ny = ux * hw;
+        const ax = a.x - ux * hw, ay = a.y - uy * hw, bx = b.x + ux * hw, by = b.y + uy * hw;
+        const c = [
+          [ax + nx, ay + ny], [bx + nx, by + ny], [bx - nx, by - ny], [ax - nx, ay - ny],
+        ];
+        const lo = c.map(([x, y]) => m.v(x, y, zFloor));
+        const hi = c.map(([x, y]) => m.v(x, y, zTop));
+        m.quad(lo[3], lo[2], lo[1], lo[0]);            // bottom, facing down
+        m.quad(hi[0], hi[1], hi[2], hi[3]);            // top
+        for (let k = 0; k < 4; k += 1) {
+          const n = (k + 1) % 4;
+          m.quad(lo[k], lo[n], hi[n], hi[k]);
+        }
+      }
+    }
+  }
 }

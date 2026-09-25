@@ -94,4 +94,34 @@ describe("record mesh", () => {
   it("leaves a 0.4 mm nozzle on the measured defaults", () => {
     expect(meshNozzleProfile(0.4)).toEqual({});
   });
+
+  it("raised label text sits on the plateau, inside the groove band, and keeps the solid closed", () => {
+    const plain = buildRecordMesh(p, tone(300, 3, p.sampleRate, 1));
+    const titled = buildRecordMesh({ ...p, labelText: ["SIDE A", "1987"] }, tone(300, 3, p.sampleRate, 1));
+    expect(titled.mesh.triangleCount).toBeGreaterThan(plain.mesh.triangleCount);
+    expect(titled.mesh.checkManifold()).toEqual([]);
+    const zFloor = p.thicknessMm - p.grooveDepthMm;
+    const v = titled.mesh.vertices;
+    let maxTextR = 0, maxZ = 0;
+    for (let i = plain.mesh.vertexCount * 3; i < v.length; i += 3) {
+      maxTextR = Math.max(maxTextR, Math.hypot(v[i] - p.centerX, v[i + 1] - p.centerY));
+      maxZ = Math.max(maxZ, v[i + 2]);
+      expect(v[i + 2]).toBeGreaterThanOrEqual(zFloor - 1e-9);
+    }
+    expect(maxTextR).toBeLessThan(p.innerGrooveR);
+    expect(maxZ).toBeCloseTo(zFloor + p.labelReliefMm, 6);
+  });
+
+  it("the rim and the label sit at floor level so a filament change splits base from grooves", () => {
+    const zFloor = p.thicknessMm - p.grooveDepthMm;
+    const v = mesh.vertices;
+    let rimZ = -1, labelZ = -1;
+    for (let i = 0; i < v.length; i += 3) {
+      const r = Math.hypot(v[i] - p.centerX, v[i + 1] - p.centerY);
+      if (r > p.diameterMm / 2 - 0.01) rimZ = Math.max(rimZ, v[i + 2]);
+      if (r < p.holeMm / 2 + 0.01) labelZ = Math.max(labelZ, v[i + 2]);
+    }
+    expect(rimZ).toBeCloseTo(zFloor, 6);
+    expect(labelZ).toBeCloseTo(zFloor, 6);   // the label plateau is the top of the hole ring
+  });
 });
