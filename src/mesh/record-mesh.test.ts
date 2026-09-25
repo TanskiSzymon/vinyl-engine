@@ -163,4 +163,21 @@ describe("record mesh", () => {
     const radius = (i: number) => Math.hypot(v[(4 * i + 1) * 3] - p.centerX, v[(4 * i + 1) * 3 + 1] - p.centerY);
     expect(radius(M - p.stepsPerTurn) - radius(M)).toBeGreaterThan(p.grooveTopMm + 2 * p.amplitudeMm);
   });
+
+  it("the band rises from the rim and drops to the label over a slope, not a wall", () => {
+    const zFloor = p.thicknessMm - p.grooveDepthMm;
+    const v = mesh.vertices;
+    const outerEdge = p.outerGrooveR + p.grooveTopMm / 2;      // outer edge of the first turn at th = 0
+    let footOut = 0, footIn = Infinity;
+    for (let i = 0; i < v.length; i += 3) {
+      const r = Math.hypot(v[i] - p.centerX, v[i + 1] - p.centerY);
+      if (Math.abs(v[i + 2] - zFloor) > 1e-6) continue;
+      if (r > p.holeMm / 2 + 0.01 && r < p.diameterMm / 2 - 0.01) { footOut = Math.max(footOut, r); footIn = Math.min(footIn, r); }
+    }
+    const M = Math.round((p.leadInTurns + turns + 1) * p.stepsPerTurn);
+    const innerEdge = Math.hypot(v[(4 * M + 3) * 3] - p.centerX, v[(4 * M + 3) * 3 + 1] - p.centerY);   // D[M]
+    expect(footOut).toBeCloseTo(outerEdge + p.edgeChamferMm, 1);   // the foot of the slope, one chamfer out
+    expect(footIn).toBeCloseTo(innerEdge - p.edgeChamferMm, 1);    // and one chamfer in on the label side
+    expect(p.diameterMm / 2 - footOut).toBeGreaterThan(0.5);        // some flat rim survives beyond it
+  });
 });

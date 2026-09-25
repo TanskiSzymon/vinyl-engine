@@ -43,6 +43,9 @@ export type MeshParams = {
   labelReliefMm: number;
   /** A raised pattern in the middle: the same patterns the G-code path draws. */
   decorStyle: DecorStyle;
+  /** How far the step between the flat rim (or label) and the raised groove band is drawn out
+   *  into a slope. A vertical face there is a 0.7 mm cliff right where the needle is lowered. */
+  edgeChamferMm: number;
   /** Spacing the pattern is resampled to. The G-code draws it at 0.5 mm, which is far finer than
    *  a relief needs and costs triangles a slicer then has to chew through. */
   decorStepMm: number;
@@ -58,7 +61,7 @@ export const MESH_DEFAULTS: Omit<MeshParams, "sampleRate"> = {
   landMm: 0.9, amplitudeMm: 0.18,
   leadInTurns: 1, leadInPitchMm: 3,
   stepsPerTurn: 2400,
-  labelText: [], labelCapMm: 7, labelStrokeMm: 1.0, labelReliefMm: 0.5, decorStyle: "none", decorStepMm: 1.2,
+  labelText: [], labelCapMm: 7, labelStrokeMm: 1.0, labelReliefMm: 0.5, decorStyle: "none", decorStepMm: 1.2, edgeChamferMm: 1.2,
   centerX: 128, centerY: 128,
 };
 
@@ -186,16 +189,21 @@ export function buildRecordMesh(p: MeshParams, signal: Float32Array): RecordMesh
   // makes a filament change at the floor height come out like the printed discs: base in one
   // colour, grooves and label text in the other.
   const vx = m.vertices;                  // snapshot: the rings below copy XY from the spiral
-  const lowRing = (ids: number[], from: number, count: number) => {
+  // The foot of the slope sits a chamfer further out (or further in), so the step from the flat
+  // rim up to the groove band is a ramp the stylus can ride rather than a wall it runs into.
+  const lowRing = (ids: number[], from: number, count: number, outward: number) => {
     const out: number[] = [];
     for (let i = 0; i <= count; i += 1) {
       const idx = ids[from + i] * 3;
-      out.push(m.v(vx[idx], vx[idx + 1], zFloor));
+      const x = vx[idx] - p.centerX, y = vx[idx + 1] - p.centerY;
+      const r = Math.hypot(x, y) + outward;
+      const k = r / Math.hypot(x, y);
+      out.push(m.v(p.centerX + x * k, p.centerY + y * k, zFloor));
     }
     return out;
   };
-  const aLow = lowRing(A, 0, N);          // under the first turn's outer edge
-  const dLow = lowRing(D, M - N, N);      // under the last turn's inner edge
+  const aLow = lowRing(A, 0, N, p.edgeChamferMm);           // outside the first turn's outer edge
+  const dLow = lowRing(D, M - N, N, -p.edgeChamferMm);      // inside the last turn's inner edge
 
   // Outer: flat band from the rim to the first turn, then a wall up to the land.
   for (let i = 0; i < N; i += 1) {
@@ -295,13 +303,16 @@ function emitDecorRelief(m: Mesh, p: MeshParams, zFloor: number): void {
   const { center, rim } = decorParts(rp, p.decorStyle, p.labelText, p.labelCapMm);
   const hw = p.labelStrokeMm / 2, zTop = zFloor + p.labelReliefMm, zBase = zFloor - RELIEF_SINK_MM;
   const rHoleClear = p.holeMm / 2 + 0.4;
+  // The groove band plus the chamfer at each side of it, with a little margin.
+  const reach = p.grooveTopMm / 2 + p.amplitudeMm + p.edgeChamferMm + 0.3;
+  const bandIn = p.innerGrooveR - reach, bandOut = p.outerGrooveR + reach;
   for (const path of [...center, ...rim]) {
     const coarse = resample(path, p.decorStepMm);
     for (let i = 0; i + 1 < coarse.length; i += 1) {
       const a = coarse[i], b = coarse[i + 1];
       const r = Math.hypot((a.x + b.x) / 2 - p.centerX, (a.y + b.y) / 2 - p.centerY);
       if (r < rHoleClear) continue;                                      // never over the spindle hole
-      if (r > p.innerGrooveR - 0.6 && r < p.outerGrooveR + 1.5) continue; // never inside the groove band
+      if (r > bandIn && r < bandOut) continue;                             // never on the band or its slopes
       emitStroke(m, a, b, hw, zBase, zTop);
     }
   }
