@@ -105,19 +105,33 @@ export function buildRecordMesh(p: MeshParams, signal: Float32Array): RecordMesh
   const rMusicStart = rLead - p.leadInTurns * p.leadInPitchMm;
   const musicSec = Math.min(signal.length / p.sampleRate, meshMaxDurationSec(p));
   const turns = Math.max(1, Math.ceil((musicSec * p.rpm) / 60));
-  const totalTurns = p.leadInTurns + turns + 1;          // rozbieg + muzyka + wybieg
+  const totalTurns = p.leadInTurns + turns + 1;          // lead-in + music + lead-out
   const M = Math.round(totalTurns * N);                   // steps along the spiral
   const omega = (TWO_PI * p.rpm) / 60;
   const zTop = p.thicknessMm, zFloor = p.thicknessMm - p.grooveDepthMm, zBot = 0;
 
-  // Radius of the groove axis: a coarser lead-in, then a constant pitch, then the lead-out.
+  // Radius of the groove axis: a coarser lead-in, then a constant pitch all the way through the
+  // music and the lead-out. The pitch stays constant to the end on purpose: letting it decay would
+  // bring the last turn within less than one groove width of the previous one and the two would
+  // merge into each other.
   const thMusic = TWO_PI * p.leadInTurns;
   const thEnd = thMusic + TWO_PI * turns;
+  const thTotal = TWO_PI * totalTurns;
   const axis = (th: number) => {
     if (th < thMusic) return rLead - (p.leadInPitchMm * th) / TWO_PI;
-    if (th < thEnd) return rMusicStart - (pitch * (th - thMusic)) / TWO_PI;
-    return rMusicStart - pitch * turns - (pitch * (th - thEnd)) / TWO_PI;
+    return rMusicStart - (pitch * (th - thMusic)) / TWO_PI;
   };
+  /**
+   * The groove has to start and end somewhere, and a channel that simply stops leaves a wall that
+   * the stylus hits at full speed. Instead the floor rises back to the land over the first quarter
+   * turn and over the last half turn, so the needle slides into the groove at the start and rides
+   * gently out of it onto the flat surface at the end. Between the two it is at full depth.
+   */
+  const fade = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));   // smoothstep
+  const depthAt = (th: number) => Math.min(
+    fade(th / (0.25 * TWO_PI)),
+    fade((thTotal - th) / (0.5 * TWO_PI)),
+  );
   // Excursion: the signal only inside the musical part, ramped in and out over 0.3 s.
   const ramp = 0.3;
   const offset = (th: number) => {
@@ -135,9 +149,10 @@ export function buildRecordMesh(p: MeshParams, signal: Float32Array): RecordMesh
     const r = axis(th) + offset(th);
     const cos = Math.cos(th), sin = Math.sin(th);
     const at = (rr: number, z: number) => m.v(p.centerX + rr * cos, p.centerY + rr * sin, z);
+    const zBottom = zTop - p.grooveDepthMm * depthAt(th);
     A.push(at(r + halfTop, zTop));
-    B.push(at(r + halfFloor, zFloor));
-    C.push(at(r - halfFloor, zFloor));
+    B.push(at(r + halfFloor, zBottom));
+    C.push(at(r - halfFloor, zBottom));
     D.push(at(r - halfTop, zTop));
   }
 

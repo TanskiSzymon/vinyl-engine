@@ -149,4 +149,18 @@ describe("record mesh", () => {
     expect(inGroove).toBe(0);
     expect(minZ).toBeGreaterThanOrEqual(zFloor - 0.31);   // sunk into the plateau, no further
   });
+
+  it("the groove fades into the surface at both ends instead of ending in a wall", () => {
+    const built = buildRecordMesh(p, tone(300, 3, p.sampleRate, 1));
+    const v = built.mesh.vertices;
+    const M = Math.round((p.leadInTurns + built.turns + 1) * p.stepsPerTurn);
+    const depth = (i: number) => p.thicknessMm - v[(4 * i + 1) * 3 + 2];   // B ring carries the floor
+    expect(depth(0)).toBeCloseTo(0, 6);                     // no step to fall into at the start
+    expect(depth(M)).toBeCloseTo(0, 6);                     // and none to hit at the end
+    expect(depth(Math.round(p.stepsPerTurn * 0.3))).toBeCloseTo(p.grooveDepthMm, 2);
+    expect(depth(Math.round(M / 2))).toBeCloseTo(p.grooveDepthMm, 6);
+    // the pitch has to stay constant to the end, or the last turn merges into the previous one
+    const radius = (i: number) => Math.hypot(v[(4 * i + 1) * 3] - p.centerX, v[(4 * i + 1) * 3 + 1] - p.centerY);
+    expect(radius(M - p.stepsPerTurn) - radius(M)).toBeGreaterThan(p.grooveTopMm + 2 * p.amplitudeMm);
+  });
 });
