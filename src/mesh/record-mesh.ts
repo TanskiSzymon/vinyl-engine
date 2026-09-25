@@ -240,7 +240,16 @@ function resample<T extends { x: number; y: number }>(path: T[], stepMm: number)
   return out;
 }
 
-/** One stroke, of the font or of a pattern, as a closed box standing on the plateau. */
+/**
+ * How far the relief boxes sink into the plateau. Sitting exactly on the surface would leave their
+ * bottom faces coplanar with it, which is the case slicers handle worst: coincident faces make a
+ * layer's outline ambiguous and send Bambu Studio into its mesh repair pass, which on a few hundred
+ * thousand triangles takes minutes. Overlapping the solid by a fraction of a millimetre instead
+ * gives a clean volumetric union.
+ */
+const RELIEF_SINK_MM = 0.3;
+
+/** One stroke, of the font or of a pattern, as a closed box sunk into the plateau. */
 function emitStroke(m: Mesh, a: { x: number; y: number }, b: { x: number; y: number }, hw: number, z0: number, z1: number): void {
   const dx = b.x - a.x, dy = b.y - a.y;
   const len = Math.hypot(dx, dy);
@@ -269,7 +278,7 @@ function emitDecorRelief(m: Mesh, p: MeshParams, zFloor: number): void {
     beadWidthMm: p.labelStrokeMm, amplitudeMm: p.amplitudeMm,
   });
   const { center, rim } = decorParts(rp, p.decorStyle, p.labelText, p.labelCapMm);
-  const hw = p.labelStrokeMm / 2, zTop = zFloor + p.labelReliefMm;
+  const hw = p.labelStrokeMm / 2, zTop = zFloor + p.labelReliefMm, zBase = zFloor - RELIEF_SINK_MM;
   const rHoleClear = p.holeMm / 2 + 0.4;
   for (const path of [...center, ...rim]) {
     const coarse = resample(path, p.decorStepMm);
@@ -278,7 +287,7 @@ function emitDecorRelief(m: Mesh, p: MeshParams, zFloor: number): void {
       const r = Math.hypot((a.x + b.x) / 2 - p.centerX, (a.y + b.y) / 2 - p.centerY);
       if (r < rHoleClear) continue;                                      // never over the spindle hole
       if (r > p.innerGrooveR - 0.6 && r < p.outerGrooveR + 1.5) continue; // never inside the groove band
-      emitStroke(m, a, b, hw, zFloor, zTop);
+      emitStroke(m, a, b, hw, zBase, zTop);
     }
   }
 }
@@ -297,7 +306,7 @@ function emitLabelText(m: Mesh, p: MeshParams, zFloor: number): void {
   const cap = p.labelCapMm;
   const clear = p.holeMm / 2 + 0.8;
   const baselines = lines.length === 2 ? [clear, -(clear + cap)] : [clear];
-  const hw = p.labelStrokeMm / 2, zTop = zFloor + p.labelReliefMm;
+  const hw = p.labelStrokeMm / 2, zTop = zFloor + p.labelReliefMm, zBase = zFloor - RELIEF_SINK_MM;
   const rHoleClear = p.holeMm / 2 + 0.4;
   for (let li = 0; li < lines.length; li += 1) {
     const polys = textPolys(lines[li], { capHeightMm: cap, centerX: p.centerX, baselineY: p.centerY + baselines[li] });
@@ -306,7 +315,7 @@ function emitLabelText(m: Mesh, p: MeshParams, zFloor: number): void {
         const a = poly[i], b = poly[i + 1];
         const mx = (a.x + b.x) / 2 - p.centerX, my = (a.y + b.y) / 2 - p.centerY;
         if (Math.hypot(mx, my) < rHoleClear) continue;      // never build over the spindle hole
-        emitStroke(m, a, b, hw, zFloor, zTop);
+        emitStroke(m, a, b, hw, zBase, zTop);
       }
     }
   }

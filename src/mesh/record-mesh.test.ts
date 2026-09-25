@@ -102,12 +102,13 @@ describe("record mesh", () => {
     expect(titled.mesh.checkManifold()).toEqual([]);
     const zFloor = p.thicknessMm - p.grooveDepthMm;
     const v = titled.mesh.vertices;
-    let maxTextR = 0, maxZ = 0;
+    let maxTextR = 0, maxZ = 0, minZ = Infinity;
     for (let i = plain.mesh.vertexCount * 3; i < v.length; i += 3) {
       maxTextR = Math.max(maxTextR, Math.hypot(v[i] - p.centerX, v[i + 1] - p.centerY));
       maxZ = Math.max(maxZ, v[i + 2]);
-      expect(v[i + 2]).toBeGreaterThanOrEqual(zFloor - 1e-9);
+      minZ = Math.min(minZ, v[i + 2]);
     }
+    expect(minZ).toBeGreaterThanOrEqual(zFloor - 0.31);   // sunk into the plateau, no further
     expect(maxTextR).toBeLessThan(p.innerGrooveR);
     let minTextR = Infinity;
     for (let i = plain.mesh.vertexCount * 3; i < v.length; i += 3) {
@@ -137,11 +138,15 @@ describe("record mesh", () => {
     expect(fancy.mesh.checkManifold()).toEqual([]);
     const zFloor = p.thicknessMm - p.grooveDepthMm;
     const v = fancy.mesh.vertices;
+    let minR = Infinity, minZ = Infinity, inGroove = 0;
     for (let i = plain.mesh.vertexCount * 3; i < v.length; i += 3) {
       const r = Math.hypot(v[i] - p.centerX, v[i + 1] - p.centerY);
-      expect(r).toBeGreaterThan(p.holeMm / 2);
-      expect(r < p.innerGrooveR || r > p.outerGrooveR).toBe(true);
-      expect(v[i + 2]).toBeGreaterThanOrEqual(zFloor - 1e-9);
+      minR = Math.min(minR, r);
+      minZ = Math.min(minZ, v[i + 2]);
+      if (r > p.innerGrooveR && r < p.outerGrooveR) inGroove += 1;
     }
+    expect(minR).toBeGreaterThan(p.holeMm / 2);
+    expect(inGroove).toBe(0);
+    expect(minZ).toBeGreaterThanOrEqual(zFloor - 0.31);   // sunk into the plateau, no further
   });
 });
