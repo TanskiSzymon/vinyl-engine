@@ -188,34 +188,37 @@ export function buildRecordMesh(p: MeshParams, signal: Float32Array): RecordMesh
   // the grooved ring stands proud of the disc exactly as it does in the G-code path. That is what
   // makes a filament change at the floor height come out like the printed discs: base in one
   // colour, grooves and label text in the other.
-  const vx = m.vertices;                  // snapshot: the rings below copy XY from the spiral
-  // The foot of the slope sits a chamfer further out (or further in), so the step from the flat
-  // rim up to the groove band is a ramp the stylus can ride rather than a wall it runs into.
-  const lowRing = (ids: number[], from: number, count: number, outward: number) => {
+  //
+  // The band's edges are CIRCLES, not the spiral. The lead-in moves inward by a whole lead-in pitch
+  // over its first turn, so an edge that followed it would jump by that pitch at the seam and leave
+  // a vertical wedge there, right where a needle gets lowered. Instead a flat shelf at land height
+  // fills the space between the circle and the first turn, and the same on the inside between the
+  // last turn and the label. Each edge then drops to floor level over a chamfer.
+  const vx = m.vertices;
+  const radiusOf = (id: number) => Math.hypot(vx[id * 3] - p.centerX, vx[id * 3 + 1] - p.centerY);
+  let rBandOut = 0, rBandIn = Infinity;
+  for (let i = 0; i <= N; i += 1) rBandOut = Math.max(rBandOut, radiusOf(A[i]));
+  for (let i = M - N; i <= M; i += 1) rBandIn = Math.min(rBandIn, radiusOf(D[i]));
+  rBandOut += 0.2; rBandIn -= 0.2;
+  const ring = (r: number, z: number) => {
     const out: number[] = [];
-    for (let i = 0; i <= count; i += 1) {
-      const idx = ids[from + i] * 3;
-      const x = vx[idx] - p.centerX, y = vx[idx + 1] - p.centerY;
-      const r = Math.hypot(x, y) + outward;
-      const k = r / Math.hypot(x, y);
-      out.push(m.v(p.centerX + x * k, p.centerY + y * k, zFloor));
+    for (let i = 0; i < N; i += 1) {
+      const th = (TWO_PI * i) / N;
+      out.push(m.v(p.centerX + r * Math.cos(th), p.centerY + r * Math.sin(th), z));
     }
     return out;
   };
-  const aLow = lowRing(A, 0, N, p.edgeChamferMm);           // outside the first turn's outer edge
-  const dLow = lowRing(D, M - N, N, -p.edgeChamferMm);      // inside the last turn's inner edge
+  const outTop = ring(rBandOut, zTop), outLow = ring(rBandOut + p.edgeChamferMm, zFloor);
+  const inTop = ring(rBandIn, zTop), inLow = ring(rBandIn - p.edgeChamferMm, zFloor);
 
-  // Outer: flat band from the rim to the first turn, then a wall up to the land.
   for (let i = 0; i < N; i += 1) {
-    m.quad(rimTop[i], rimTop[w(i + 1)], aLow[i + 1], aLow[i]);
-    m.quad(aLow[i], aLow[i + 1], A[i + 1], A[i]);
-  }
-
-  // Inner: a wall down from the last turn, then the flat label plateau to the hole.
-  for (let i = 0; i < N; i += 1) {
-    const j = M - N + i;
-    m.quad(D[j], D[j + 1], dLow[i + 1], dLow[i]);
-    m.quad(dLow[i], dLow[i + 1], holeTop[w(i + 1)], holeTop[i]);
+    const k = w(i + 1), j = M - N + i;
+    m.quad(rimTop[i], rimTop[k], outLow[k], outLow[i]);     // flat rim at floor level
+    m.quad(outLow[i], outLow[k], outTop[k], outTop[i]);     // chamfer up to the band
+    m.quad(outTop[i], outTop[k], A[i + 1], A[i]);           // shelf from the circle to the first turn
+    m.quad(D[j], D[j + 1], inTop[k], inTop[i]);             // shelf from the last turn to the circle
+    m.quad(inTop[i], inTop[k], inLow[k], inLow[i]);         // chamfer down to the label
+    m.quad(inLow[i], inLow[k], holeTop[k], holeTop[i]);     // label plateau to the hole
   }
 
   // The underside, the outer wall and the wall of the hole.
@@ -234,16 +237,13 @@ export function buildRecordMesh(p: MeshParams, signal: Float32Array): RecordMesh
   // floor level. The points lie on one radius, so these faces have zero area, but without them the
   // solid would not be closed: that is an unavoidable feature of a spiral on a disc, and a slicer
   // treats them as degenerate and ignores them.
-  // The step of the spiral. Where the groove starts and ends, the band beside it drops to floor
-  // level, so each seam is a six sided hole in one radial plane. Two fans close them. The faces
-  // have zero area, but without them the solid is not closed: that is what a spiral on a disc
-  // costs, and a slicer treats them as degenerate and ignores them.
-  for (const [a, b, c, d, e, f] of [
-    [rimTop[0], aLow[0], A[0], D[0], A[N], aLow[N]],
-    [A[M], D[M - N], dLow[0], holeTop[0], dLow[N], D[M]],
-  ]) {
-    m.t(a, b, c); m.t(a, c, d); m.t(a, d, e); m.t(a, e, f);
-  }
+  // The seam of the spiral. With circular band edges and a groove that fades to zero depth at both
+  // ends, all that is left where the spiral starts and ends is a flat sliver of shelf in the land
+  // plane, closed with two triangles. Nothing vertical remains there.
+  m.t(outTop[0], A[0], D[0]);
+  m.t(outTop[0], D[0], A[N]);
+  m.t(A[M], D[M - N], inTop[0]);
+  m.t(A[M], inTop[0], D[M]);
 
   emitLabelText(m, p, zFloor);
   emitDecorRelief(m, p, zFloor);

@@ -75,7 +75,9 @@ describe("record mesh", () => {
       const area = Math.hypot(by * cz - bz * cy, bz * cx - bx * cz, bx * cy - by * cx) / 2;
       if (area < 1e-9) degenerate += 1;
     }
-    expect(degenerate).toBeLessThanOrEqual(4);
+    // Two end caps of a groove that has faded to zero depth (two triangles each) and the four
+    // seam slivers, which lie on one ray. All eight are flat and a slicer ignores them.
+    expect(degenerate).toBeLessThanOrEqual(8);
   });
 
   it("a finer nozzle tightens the pitch, keeps the land printable and stays watertight", () => {
@@ -176,8 +178,24 @@ describe("record mesh", () => {
     }
     const M = Math.round((p.leadInTurns + turns + 1) * p.stepsPerTurn);
     const innerEdge = Math.hypot(v[(4 * M + 3) * 3] - p.centerX, v[(4 * M + 3) * 3 + 1] - p.centerY);   // D[M]
-    expect(footOut).toBeCloseTo(outerEdge + p.edgeChamferMm, 1);   // the foot of the slope, one chamfer out
-    expect(footIn).toBeCloseTo(innerEdge - p.edgeChamferMm, 1);    // and one chamfer in on the label side
+    expect(footOut).toBeCloseTo(outerEdge + 0.2 + p.edgeChamferMm, 1);   // the foot of the slope, one chamfer out
+    expect(footIn).toBeCloseTo(innerEdge - 0.2 - p.edgeChamferMm, 1);    // and one chamfer in on the label side
     expect(p.diameterMm / 2 - footOut).toBeGreaterThan(0.5);        // some flat rim survives beyond it
+  });
+
+  it("leaves nothing vertical at the seam of the spiral", () => {
+    // Every triangle touching the seam angle must be flat: no face there may span two heights.
+    const v = mesh.vertices, t = mesh.triangles;
+    let vertical = 0;
+    for (let i = 0; i < t.length; i += 3) {
+      const ids = [t[i], t[i + 1], t[i + 2]];
+      const pts = ids.map((id) => ({ x: v[id * 3] - p.centerX, y: v[id * 3 + 1] - p.centerY, z: v[id * 3 + 2] }));
+      const r = pts.map((q) => Math.hypot(q.x, q.y));
+      const atSeam = pts.every((q) => Math.abs(q.y) < 1e-6 && q.x > 0);   // all three on the th = 0 ray
+      const onBand = r.every((rr) => rr > p.innerGrooveR - 3 && rr < p.outerGrooveR + 3);
+      const zs = pts.map((q) => q.z);
+      if (atSeam && onBand && Math.max(...zs) - Math.min(...zs) > 1e-6) vertical += 1;
+    }
+    expect(vertical).toBe(0);
   });
 });
