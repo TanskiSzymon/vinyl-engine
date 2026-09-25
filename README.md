@@ -17,6 +17,8 @@ This one moves the groove **sideways**.
 *The Entertainer (Scott Joplin, 1902), 200 mm, 78 rpm, 0.2 mm nozzle, two colours from an AMS.
 Printed on a Bambu Lab P1S, played on an Audio-Technica AT-LP120X with a cheap conical stylus.*
 
+**Video, with sound:** <https://youtube.com/shorts/Oa8asXuxjOY>
+
 ```
 vertical modulation                 lateral modulation
 (depth follows the wave)            (the groove wanders left and right)
