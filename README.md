@@ -19,6 +19,9 @@ Printed on a Bambu Lab P1S, played on an Audio-Technica AT-LP120X with a cheap c
 
 **Video, with sound:** <https://youtube.com/shorts/Oa8asXuxjOY>
 
+**Ready to print**, as 3MF you slice with your own profile, with files for a 0.4 mm and a 0.2 mm
+nozzle in each: [The Entertainer](https://makerworld.com/en/models/3355208-playable-3d-printed-record-the-entertainer) · [the rickroll](https://makerworld.com/en/models/3355507-playable-3d-printed-record-the-rickroll)
+
 ```
 vertical modulation                 lateral modulation
 (depth follows the wave)            (the groove wanders left and right)
